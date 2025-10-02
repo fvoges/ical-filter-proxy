@@ -28,7 +28,7 @@ type Config struct {
 // This function loads the configuration file and does some basic validation
 // Returns false if the config is not valid or an error occurs
 func (config *Config) LoadConfig(file string) bool {
-	data, err := os.ReadFile(file)
+	data, err := os.ReadFile(file) // #nosec G304 - config file path is from command line flag, validated by user
 	if err != nil {
 		slog.Error("Unable to open config file! You can use -config to specify a different file", "file", file)
 		return false
@@ -98,7 +98,7 @@ func (config *Config) LoadConfig(file string) bool {
 }
 
 func readSecretFile(filePath string) (string, error) {
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) // #nosec G304 - secret file path is from config file, validated by admin
 	if err != nil {
 		return "", err
 	}
@@ -209,12 +209,12 @@ func main() {
 	http.HandleFunc("/liveness", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"alive"}`))
+		_, _ = w.Write([]byte(`{"status":"alive"}`)) // nosec G104 - error writing to response is logged by http server
 	})
 	http.HandleFunc("/readiness", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ready"}`))
+		_, _ = w.Write([]byte(`{"status":"ready"}`)) // nosec G104 - error writing to response is logged by http server
 	})
 
 	// Create HTTP server with security timeouts

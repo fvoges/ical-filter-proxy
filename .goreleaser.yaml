@@ -1,0 +1,93 @@
+# GoReleaser configuration
+# See https://goreleaser.com for documentation
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test -v ./...
+
+builds:
+  - id: ical-filter-proxy
+    main: .
+    binary: ical-filter-proxy
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "6"
+      - "7"
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -extldflags "-static"
+    flags:
+      - -trimpath
+
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - SECURITY.md
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - typo
+  groups:
+    - title: '🔴 Critical & Security Fixes'
+      regexp: '^.*?(fix|security)(\(.+\))??!?:.+$'
+      order: 0
+    - title: '✨ New Features'
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 1
+    - title: '🐛 Bug Fixes'
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 2
+    - title: '📚 Documentation'
+      regexp: '^.*?docs(\(.+\))??!?:.+$'
+      order: 3
+    - title: '🔧 Other Changes'
+      order: 999
+
+release:
+  github:
+    owner: fvoges
+    name: ical-filter-proxy
+  name_template: "v{{.Version}}"
+  draft: false
+  prerelease: auto
+  make_latest: true
