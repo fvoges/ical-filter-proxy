@@ -28,7 +28,7 @@ jobs:
         with:
           config_dir: .chglog
           filename: CHANGELOG.md
-          git_chglog_version: v0.15.4
+          git_chglog_version: 0.15.4
 
       - name: Check for changes
         id: check_changes
