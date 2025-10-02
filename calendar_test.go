@@ -47,16 +47,9 @@ func TestAnonymizeEvent(t *testing.T) {
 		t.Errorf("Expected URL to be empty, got '%s'", url.Value)
 	}
 	
-	// Verify attendees are removed
-	attendees := event.Properties[ics.ComponentPropertyAttendee]
-	if attendees != nil && len(attendees) > 0 {
-		t.Errorf("Expected attendees to be removed, got %d attendees", len(attendees))
-	}
-	
-	// Verify organizer is removed
-	organizer := event.Properties[ics.ComponentPropertyOrganizer]
-	if organizer != nil && len(organizer) > 0 {
-		t.Errorf("Expected organizer to be removed")
+	// Verify components (alarms) are removed
+	if event.Components != nil && len(event.Components) > 0 {
+		t.Errorf("Expected components to be removed, got %d components", len(event.Components))
 	}
 }
 

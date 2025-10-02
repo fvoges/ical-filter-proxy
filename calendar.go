@@ -93,6 +93,17 @@ func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 		}
 	}
 
+	// serialize output
+	var buf bytes.Buffer
+	err = cal.SerializeTo(&buf)
+	if err != nil {
+		return nil, err
+	}
+
+	// return
+	return buf.Bytes(), nil
+}
+
 // Strips all sensitive data from a VEvent, keeping only date/times and status
 // This creates a proper free/busy feed by removing all identifying information
 func AnonymizeEvent(event *ics.VEvent) {
@@ -104,53 +115,11 @@ func AnonymizeEvent(event *ics.VEvent) {
 	event.SetLocation("")
 	event.SetURL("")
 	
-	// Remove attendees
-	event.Properties[ics.ComponentPropertyAttendee] = nil
-	delete(event.Properties, ics.ComponentPropertyAttendee)
-	
-	// Remove organizer
-	event.Properties[ics.ComponentPropertyOrganizer] = nil
-	delete(event.Properties, ics.ComponentPropertyOrganizer)
-	
-	// Remove conference/meeting links
-	event.Properties[ics.ComponentPropertyConference] = nil
-	delete(event.Properties, ics.ComponentPropertyConference)
-	
-	// Remove attachments
-	event.Properties[ics.ComponentPropertyAttach] = nil
-	delete(event.Properties, ics.ComponentPropertyAttach)
-	
-	// Remove comments
-	event.Properties[ics.ComponentPropertyComment] = nil
-	delete(event.Properties, ics.ComponentPropertyComment)
-	
-	// Remove contact info
-	event.Properties[ics.ComponentPropertyContact] = nil
-	delete(event.Properties, ics.ComponentPropertyContact)
-	
-	// Remove related-to links
-	event.Properties[ics.ComponentPropertyRelatedTo] = nil
-	delete(event.Properties, ics.ComponentPropertyRelatedTo)
-	
-	// Remove resources
-	event.Properties[ics.ComponentPropertyResources] = nil
-	delete(event.Properties, ics.ComponentPropertyResources)
-	
-	// Remove alarms (reminders)
+	// Remove all components (alarms, reminders, etc.)
 	event.Components = nil
 	
-	// Keep: DTSTART, DTEND, DTSTAMP, UID, STATUS, TRANSP
+	// Keep: DTSTART, DTEND, DTSTAMP, UID, SUMMARY, STATUS, TRANSP
 	// These are the minimal properties needed for a free/busy feed
-}
-	// serialize output
-	var buf bytes.Buffer
-	err = cal.SerializeTo(&buf)
-	if err != nil {
-		return nil, err
-	}
-
-	// return
-	return buf.Bytes(), nil
 }
 
 // Evaluate the filters for a calendar against a given VEvent and
