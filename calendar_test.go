@@ -10,7 +10,7 @@ func TestAnonymizeEvent(t *testing.T) {
 	// Create a test event with various properties
 	cal := ics.NewCalendar()
 	event := cal.AddEvent("test-event-123")
-	
+
 	// Set various properties that should be removed
 	event.SetSummary("Confidential Meeting")
 	event.SetDescription("Secret discussion about project X")
@@ -19,36 +19,36 @@ func TestAnonymizeEvent(t *testing.T) {
 	event.SetOrganizer("organizer@example.com")
 	event.AddAttendee("attendee1@example.com")
 	event.AddAttendee("attendee2@example.com")
-	
+
 	// Anonymize the event
 	AnonymizeEvent(event)
-	
+
 	// Verify summary is set to "Busy"
 	summary := event.GetProperty(ics.ComponentPropertySummary)
 	if summary == nil || summary.Value != "Busy" {
 		t.Errorf("Expected summary to be 'Busy', got '%v'", summary)
 	}
-	
+
 	// Verify description is cleared
 	description := event.GetProperty(ics.ComponentPropertyDescription)
 	if description != nil && description.Value != "" {
 		t.Errorf("Expected description to be empty, got '%s'", description.Value)
 	}
-	
+
 	// Verify location is cleared
 	location := event.GetProperty(ics.ComponentPropertyLocation)
 	if location != nil && location.Value != "" {
 		t.Errorf("Expected location to be empty, got '%s'", location.Value)
 	}
-	
+
 	// Verify URL is cleared
 	url := event.GetProperty(ics.ComponentPropertyUrl)
 	if url != nil && url.Value != "" {
 		t.Errorf("Expected URL to be empty, got '%s'", url.Value)
 	}
-	
+
 	// Verify components (alarms) are removed
-	if event.Components != nil && len(event.Components) > 0 {
+	if len(event.Components) > 0 {
 		t.Errorf("Expected components to be removed, got %d components", len(event.Components))
 	}
 }
@@ -90,7 +90,7 @@ func TestStringMatchRule_hasConditions(t *testing.T) {
 			expected: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.rule.hasConditions()
@@ -181,7 +181,7 @@ func TestStringMatchRule_matchesString(t *testing.T) {
 			expected: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.rule.matchesString(tt.data)
@@ -199,7 +199,7 @@ func TestFilter_matchesEvent(t *testing.T) {
 	event.SetSummary("Team Meeting")
 	event.SetDescription("Weekly sync")
 	event.SetLocation("Room 101")
-	
+
 	tests := []struct {
 		name     string
 		filter   Filter
@@ -262,7 +262,7 @@ func TestFilter_matchesEvent(t *testing.T) {
 			expected: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.filter.matchesEvent(*event)

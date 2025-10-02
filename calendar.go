@@ -18,15 +18,15 @@ import (
 
 // CalendarConfig definition
 type CalendarConfig struct {
-	Name        string   `yaml:"name"`
-	PublishName string   `yaml:"publish_name"`
-	Public      bool     `yaml:"public"`
-	Token       string   `yaml:"token"`
-	TokenFile   string   `yaml:"token_file"`
-	FeedURL     string   `yaml:"feed_url"`
-	FeedURLFile string   `yaml:"feed_url_file"`
-	Filters     []Filter `yaml:"filters"`
-	FreeBusyMode bool   `yaml:"freebusy_mode"` // If true, anonymize events for free/busy
+	Name         string   `yaml:"name"`
+	PublishName  string   `yaml:"publish_name"`
+	Public       bool     `yaml:"public"`
+	Token        string   `yaml:"token"`
+	TokenFile    string   `yaml:"token_file"`
+	FeedURL      string   `yaml:"feed_url"`
+	FeedURLFile  string   `yaml:"feed_url_file"`
+	Filters      []Filter `yaml:"filters"`
+	FreeBusyMode bool     `yaml:"freebusy_mode"` // If true, anonymize events for free/busy
 }
 
 // Downloads iCal feed from the URL and applies filtering rules
@@ -35,7 +35,7 @@ func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 	// Create HTTP client with security settings
 	client := &http.Client{
 		Timeout: 30 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
 			}
@@ -109,15 +109,15 @@ func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 func AnonymizeEvent(event *ics.VEvent) {
 	// Set generic summary
 	event.SetSummary("Busy")
-	
+
 	// Clear all sensitive properties
 	event.SetDescription("")
 	event.SetLocation("")
 	event.SetURL("")
-	
+
 	// Remove all components (alarms, reminders, etc.)
 	event.Components = nil
-	
+
 	// Keep: DTSTART, DTEND, DTSTAMP, UID, SUMMARY, STATUS, TRANSP
 	// These are the minimal properties needed for a free/busy feed
 }
@@ -224,16 +224,16 @@ func (filter Filter) matchesEvent(event ics.VEvent) bool {
 		}
 	}
 
-	// Check Url filters against VEvent
-	if filter.Match.Url.hasConditions() {
-		eventUrl := event.GetProperty(ics.ComponentPropertyUrl)
-		var eventUrlValue string
-		if eventUrl == nil {
-			eventUrlValue = ""
+	// Check URL filters against VEvent
+	if filter.Match.URL.hasConditions() {
+		eventURL := event.GetProperty(ics.ComponentPropertyUrl)
+		var eventURLValue string
+		if eventURL == nil {
+			eventURLValue = ""
 		} else {
-			eventUrlValue = eventUrl.Value
+			eventURLValue = eventURL.Value
 		}
-		if !filter.Match.Url.matchesString(eventUrlValue) {
+		if !filter.Match.URL.matchesString(eventURLValue) {
 			slog.Debug("Event URL does not match filter conditions", "event_summary", eventSummary.Value, "filter", filter.Description)
 			return false // event doesn't match
 		}
@@ -269,10 +269,10 @@ func (filter Filter) transformEvent(event *ics.VEvent) {
 	}
 
 	// URL transformations
-	if filter.Transform.Url.Remove {
+	if filter.Transform.URL.Remove {
 		event.SetURL("")
-	} else if filter.Transform.Url.Replace != "" {
-		event.SetURL(filter.Transform.Url.Replace)
+	} else if filter.Transform.URL.Replace != "" {
+		event.SetURL(filter.Transform.URL.Replace)
 	}
 }
 
@@ -281,7 +281,7 @@ type EventMatchRules struct {
 	Summary     StringMatchRule `yaml:"summary"`
 	Description StringMatchRule `yaml:"description"`
 	Location    StringMatchRule `yaml:"location"`
-	Url         StringMatchRule `yaml:"url"`
+	URL         StringMatchRule `yaml:"url"`
 }
 
 // StringMatchRule defines match rules for VEvent properties with string values
@@ -346,7 +346,7 @@ type EventTransformRules struct {
 	Summary     StringTransformRule `yaml:"summary"`
 	Description StringTransformRule `yaml:"description"`
 	Location    StringTransformRule `yaml:"location"`
-	Url         StringTransformRule `yaml:"url"`
+	URL         StringTransformRule `yaml:"url"`
 }
 
 // StringTransformRule defines changes for VEvent properties with string values

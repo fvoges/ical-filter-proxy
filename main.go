@@ -206,12 +206,12 @@ func main() {
 	}
 
 	// add a readiness and liveness check endpoint with proper responses
-	http.HandleFunc("/liveness", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/liveness", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"alive"}`)) // nosec G104 - error writing to response is logged by http server
 	})
-	http.HandleFunc("/readiness", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/readiness", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ready"}`)) // nosec G104 - error writing to response is logged by http server
@@ -235,7 +235,7 @@ func main() {
 		slog.Info("Shutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		
+
 		if err := srv.Shutdown(ctx); err != nil {
 			slog.Error("Server shutdown error", "error", err)
 		}
