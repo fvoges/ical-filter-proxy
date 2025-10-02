@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	ics "github.com/arran4/golang-ical"
 )
@@ -16,28 +18,46 @@ import (
 
 // CalendarConfig definition
 type CalendarConfig struct {
-	Name        string   `yaml:"name"`
-	PublishName string   `yaml:"publish_name"`
-	Public      bool     `yaml:"public"`
-	Token       string   `yaml:"token"`
-	TokenFile   string   `yaml:"token_file"`
-	FeedURL     string   `yaml:"feed_url"`
-	FeedURLFile string   `yaml:"feed_url_file"`
-	Filters     []Filter `yaml:"filters"`
+	Name         string   `yaml:"name"`
+	PublishName  string   `yaml:"publish_name"`
+	Public       bool     `yaml:"public"`
+	Token        string   `yaml:"token"`
+	TokenFile    string   `yaml:"token_file"`
+	FeedURL      string   `yaml:"feed_url"`
+	FeedURLFile  string   `yaml:"feed_url_file"`
+	Filters      []Filter `yaml:"filters"`
+	FreeBusyMode bool     `yaml:"freebusy_mode"` // If true, anonymize events for free/busy
 }
 
 // Downloads iCal feed from the URL and applies filtering rules
 func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 
+	// Create HTTP client with security settings
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		},
+	}
+
 	// get the iCal feed
 	slog.Debug("Fetching iCal feed", "url", calendarConfig.FeedURL)
-	resp, err := http.Get(calendarConfig.FeedURL)
+	resp, err := client.Get(calendarConfig.FeedURL)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("Error closing response body", "error", err)
+		}
+	}()
 
-	feedData, err := io.ReadAll(resp.Body)
+	// Limit response body size to prevent memory exhaustion (10MB limit)
+	limitedReader := io.LimitReader(resp.Body, 10*1024*1024)
+	feedData, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +85,14 @@ func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 		slog.Debug("No filters to evaluate", "calendar", calendarConfig.Name)
 	}
 
+	// If anonymization is enabled, strip all sensitive data from events
+	if calendarConfig.FreeBusyMode {
+		slog.Debug("Anonymizing events for free/busy feed", "calendar", calendarConfig.Name)
+		for _, event := range cal.Events() {
+			AnonymizeEvent(event)
+		}
+	}
+
 	// serialize output
 	var buf bytes.Buffer
 	err = cal.SerializeTo(&buf)
@@ -74,6 +102,24 @@ func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 
 	// return
 	return buf.Bytes(), nil
+}
+
+// Strips all sensitive data from a VEvent, keeping only date/times and status
+// This creates a proper free/busy feed by removing all identifying information
+func AnonymizeEvent(event *ics.VEvent) {
+	// Set generic summary
+	event.SetSummary("Busy")
+
+	// Clear all sensitive properties
+	event.SetDescription("")
+	event.SetLocation("")
+	event.SetURL("")
+
+	// Remove all components (alarms, reminders, etc.)
+	event.Components = nil
+
+	// Keep: DTSTART, DTEND, DTSTAMP, UID, SUMMARY, STATUS, TRANSP
+	// These are the minimal properties needed for a free/busy feed
 }
 
 // Evaluate the filters for a calendar against a given VEvent and
@@ -178,16 +224,16 @@ func (filter Filter) matchesEvent(event ics.VEvent) bool {
 		}
 	}
 
-	// Check Url filters against VEvent
-	if filter.Match.Url.hasConditions() {
-		eventUrl := event.GetProperty(ics.ComponentPropertyUrl)
-		var eventUrlValue string
-		if eventUrl == nil {
-			eventUrlValue = ""
+	// Check URL filters against VEvent
+	if filter.Match.URL.hasConditions() {
+		eventURL := event.GetProperty(ics.ComponentPropertyUrl)
+		var eventURLValue string
+		if eventURL == nil {
+			eventURLValue = ""
 		} else {
-			eventUrlValue = eventUrl.Value
+			eventURLValue = eventURL.Value
 		}
-		if !filter.Match.Url.matchesString(eventUrlValue) {
+		if !filter.Match.URL.matchesString(eventURLValue) {
 			slog.Debug("Event URL does not match filter conditions", "event_summary", eventSummary.Value, "filter", filter.Description)
 			return false // event doesn't match
 		}
@@ -223,10 +269,10 @@ func (filter Filter) transformEvent(event *ics.VEvent) {
 	}
 
 	// URL transformations
-	if filter.Transform.Url.Remove {
+	if filter.Transform.URL.Remove {
 		event.SetURL("")
-	} else if filter.Transform.Url.Replace != "" {
-		event.SetURL(filter.Transform.Url.Replace)
+	} else if filter.Transform.URL.Replace != "" {
+		event.SetURL(filter.Transform.URL.Replace)
 	}
 }
 
@@ -235,7 +281,7 @@ type EventMatchRules struct {
 	Summary     StringMatchRule `yaml:"summary"`
 	Description StringMatchRule `yaml:"description"`
 	Location    StringMatchRule `yaml:"location"`
-	Url         StringMatchRule `yaml:"url"`
+	URL         StringMatchRule `yaml:"url"`
 }
 
 // StringMatchRule defines match rules for VEvent properties with string values
@@ -300,7 +346,7 @@ type EventTransformRules struct {
 	Summary     StringTransformRule `yaml:"summary"`
 	Description StringTransformRule `yaml:"description"`
 	Location    StringTransformRule `yaml:"location"`
-	Url         StringTransformRule `yaml:"url"`
+	URL         StringTransformRule `yaml:"url"`
 }
 
 // StringTransformRule defines changes for VEvent properties with string values

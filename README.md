@@ -18,12 +18,14 @@ Do you have iCal feeds with a bunch of stuff you _don't_ need? Do you want to mo
 
 iCal Filter Proxy is a simple service for proxying multiple iCal feeds while applying a list of filters to remove or modify events to suit your use case.
 
+
 ### Features
 
 - Proxy multiple calendars
 - Define a list of filters per calendar
 - Match events using basic text and regex conditions
 - Remove or modify events as they are proxied
+- **NEW:** Generate fully anonymized free/busy feeds (strip all event details except date/time and status)
 
 ### Built With
 
@@ -98,6 +100,13 @@ calendars:
           description: # modify event description
             remove: true # replace with a blank string
 
+  # free/busy anonymized feed example
+  - name: freebusy
+    publish_name: "Free/Busy Calendar"
+    token: "changeme"
+    feed_url: "https://my-upstream-calendar.url/feed.ics"
+    freebusy_mode: true # <--- enable anonymization, only date/time and status are kept
+
   # example: removing noise from an Office 365 calendar
   - name: outlook
     token: "changeme"
@@ -135,6 +144,17 @@ calendars:
       - description: "Remove all other events"
         remove: true
 ```
+
+
+### Free/Busy Anonymization
+
+If you want to generate a fully anonymized free/busy feed, set `freebusy_mode: true` for a calendar in your config. This will strip all event details except:
+
+- Start/end date/time
+- Event status (tentative/confirmed/cancelled)
+- Transparency (free/busy)
+
+All other properties (summary, location, description, attendees, organizer, conference links, attachments, etc.) are removed. This is ideal for sharing availability without exposing any sensitive details.
 
 ### Filters
 
@@ -194,14 +214,55 @@ calendars:
     feed_url_file: "/run/secrets/outlook-feed"
 ```
 
+## Security
+
+This project takes security seriously. Please see [SECURITY.md](SECURITY.md) for:
+
+- Supported versions
+- How to report security vulnerabilities
+- Security best practices for deployment
+- Known security considerations
+
+### Security Features
+
+- Constant-time token comparison to prevent timing attacks
+- HTTP client with timeouts to prevent slowloris attacks
+- Request body size limits to prevent memory exhaustion
+- Graceful shutdown handling
+- Security headers on all responses
+- Non-root container execution
+- Automated security scanning via Trivy and Gosec
+
+## Testing
+
+Run the test suite:
+
+```bash
+go test -v -race -coverprofile=coverage.out ./...
+```
+
+View coverage report:
+
+```bash
+go tool cover -html=coverage.out
+```
+
+Validate your configuration:
+
+```bash
+./ical-filter-proxy -config config.yaml -validate
+```
+
 ## Roadmap to 1.0
 
 There are a few more features I would like to add before I call the project "stable" and release version 1.0.
 
 - [ ] Time based event conditions
-- [ ] Caching
-- [ ] Prometheus metrics
-- [ ] Testing
+- [ ] Caching with configurable TTL
+- [ ] Prometheus metrics endpoint
+- [x] ~~Testing~~ ✓ Added comprehensive unit tests
+- [x] ~~Security hardening~~ ✓ Implemented multiple security improvements
+- [ ] Rate limiting per calendar/token
 
 ## Contributing
 
