@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
+	"crypto/subtle"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -54,9 +60,10 @@ func (config *Config) LoadConfig(file string) bool {
 			}
 		}
 
-		// check if url seems valid
-		if !strings.HasPrefix(calendarConfig.FeedURL, "http://") && !strings.HasPrefix(calendarConfig.FeedURL, "https://") {
-			slog.Debug("Calendar URL must begin with http:// or https://", "calendar", calendarConfig.Name, "feed_url", len(calendarConfig.Filters))
+		// check if url is valid
+		parsedURL, err := url.Parse(calendarConfig.FeedURL)
+		if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+			slog.Error("Calendar URL must be a valid http:// or https:// URL", "calendar", calendarConfig.Name, "feed_url", calendarConfig.FeedURL)
 			return false
 		}
 
@@ -158,6 +165,8 @@ func main() {
 	// iterate through calendars in the config and setup a handler for each
 	// todo: consider refactor to route requests dynamically?
 	for _, calendarConfig := range config.Calendars {
+		// Create new variable in loop scope to avoid closure capture bug
+		calendarConfig := calendarConfig
 
 		// configure HTTP endpoint
 		httpPath := "/calendars/" + calendarConfig.Name + "/feed"
@@ -166,9 +175,9 @@ func main() {
 
 			slog.Debug("Received request for calendar", "http_path", httpPath, "calendar", calendarConfig.Name, "client_ip", r.RemoteAddr)
 
-			// validate token
+			// validate token using constant-time comparison to prevent timing attacks
 			token := r.URL.Query().Get("token")
-			if token != calendarConfig.Token {
+			if subtle.ConstantTimeCompare([]byte(token), []byte(calendarConfig.Token)) != 1 {
 				slog.Warn("Unauthorized access attempt", "client_ip", r.RemoteAddr)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
@@ -196,14 +205,59 @@ func main() {
 
 	}
 
-	// add a readiness and liveness check endpoint (return blank 200 OK response)
-	http.HandleFunc("/liveness", func(w http.ResponseWriter, r *http.Request) {})
-	http.HandleFunc("/readiness", func(w http.ResponseWriter, r *http.Request) {})
+	// add a readiness and liveness check endpoint with proper responses
+	http.HandleFunc("/liveness", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"alive"}`))
+	})
+	http.HandleFunc("/readiness", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ready"}`))
+	})
+
+	// Create HTTP server with security timeouts
+	srv := &http.Server{
+		Addr:         ":" + strconv.Itoa(listenPort),
+		Handler:      addSecurityHeaders(http.DefaultServeMux),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Setup graceful shutdown
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
+		<-sigint
+
+		slog.Info("Shutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		
+		if err := srv.Shutdown(ctx); err != nil {
+			slog.Error("Server shutdown error", "error", err)
+		}
+	}()
 
 	// start the webserver
 	slog.Info("Starting web server", "port", listenPort)
-	if err := http.ListenAndServe(":"+strconv.Itoa(listenPort), nil); err != nil {
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("Error starting web server", "error", err)
+		os.Exit(1)
 	}
 
+	slog.Info("Server stopped")
+}
+
+// addSecurityHeaders middleware adds security headers to all responses
+func addSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		next.ServeHTTP(w, r)
+	})
 }

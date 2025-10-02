@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	ics "github.com/arran4/golang-ical"
 )
@@ -24,20 +26,38 @@ type CalendarConfig struct {
 	FeedURL     string   `yaml:"feed_url"`
 	FeedURLFile string   `yaml:"feed_url_file"`
 	Filters     []Filter `yaml:"filters"`
+	FreeBusyMode bool   `yaml:"freebusy_mode"` // If true, anonymize events for free/busy
 }
 
 // Downloads iCal feed from the URL and applies filtering rules
 func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 
+	// Create HTTP client with security settings
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		},
+	}
+
 	// get the iCal feed
 	slog.Debug("Fetching iCal feed", "url", calendarConfig.FeedURL)
-	resp, err := http.Get(calendarConfig.FeedURL)
+	resp, err := client.Get(calendarConfig.FeedURL)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("Error closing response body", "error", err)
+		}
+	}()
 
-	feedData, err := io.ReadAll(resp.Body)
+	// Limit response body size to prevent memory exhaustion (10MB limit)
+	limitedReader := io.LimitReader(resp.Body, 10*1024*1024)
+	feedData, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +85,63 @@ func (calendarConfig CalendarConfig) fetch() ([]byte, error) {
 		slog.Debug("No filters to evaluate", "calendar", calendarConfig.Name)
 	}
 
+	// If anonymization is enabled, strip all sensitive data from events
+	if calendarConfig.FreeBusyMode {
+		slog.Debug("Anonymizing events for free/busy feed", "calendar", calendarConfig.Name)
+		for _, event := range cal.Events() {
+			AnonymizeEvent(event)
+		}
+	}
+
+// Strips all sensitive data from a VEvent, keeping only date/times and status
+// This creates a proper free/busy feed by removing all identifying information
+func AnonymizeEvent(event *ics.VEvent) {
+	// Set generic summary
+	event.SetSummary("Busy")
+	
+	// Clear all sensitive properties
+	event.SetDescription("")
+	event.SetLocation("")
+	event.SetURL("")
+	
+	// Remove attendees
+	event.Properties[ics.ComponentPropertyAttendee] = nil
+	delete(event.Properties, ics.ComponentPropertyAttendee)
+	
+	// Remove organizer
+	event.Properties[ics.ComponentPropertyOrganizer] = nil
+	delete(event.Properties, ics.ComponentPropertyOrganizer)
+	
+	// Remove conference/meeting links
+	event.Properties[ics.ComponentPropertyConference] = nil
+	delete(event.Properties, ics.ComponentPropertyConference)
+	
+	// Remove attachments
+	event.Properties[ics.ComponentPropertyAttach] = nil
+	delete(event.Properties, ics.ComponentPropertyAttach)
+	
+	// Remove comments
+	event.Properties[ics.ComponentPropertyComment] = nil
+	delete(event.Properties, ics.ComponentPropertyComment)
+	
+	// Remove contact info
+	event.Properties[ics.ComponentPropertyContact] = nil
+	delete(event.Properties, ics.ComponentPropertyContact)
+	
+	// Remove related-to links
+	event.Properties[ics.ComponentPropertyRelatedTo] = nil
+	delete(event.Properties, ics.ComponentPropertyRelatedTo)
+	
+	// Remove resources
+	event.Properties[ics.ComponentPropertyResources] = nil
+	delete(event.Properties, ics.ComponentPropertyResources)
+	
+	// Remove alarms (reminders)
+	event.Components = nil
+	
+	// Keep: DTSTART, DTEND, DTSTAMP, UID, STATUS, TRANSP
+	// These are the minimal properties needed for a free/busy feed
+}
 	// serialize output
 	var buf bytes.Buffer
 	err = cal.SerializeTo(&buf)
