@@ -110,15 +110,39 @@ func AnonymizeEvent(event *ics.VEvent) {
 	// Set generic summary
 	event.SetSummary("Busy")
 
-	// Clear all sensitive properties
-	event.SetDescription("")
-	event.SetLocation("")
-	event.SetURL("")
+	// Remove all PII properties - including basic text fields
+	event.RemoveProperty(ics.ComponentPropertyDescription)
+	event.RemoveProperty(ics.ComponentPropertyLocation)
+	event.RemoveProperty(ics.ComponentPropertyUrl)
+	event.RemoveProperty(ics.ComponentPropertyOrganizer)
+	event.RemoveProperty(ics.ComponentPropertyAttendee)
+	event.RemoveProperty(ics.ComponentPropertyAttach)
+	event.RemoveProperty(ics.ComponentPropertyComment)
+	event.RemoveProperty(ics.ComponentPropertyContact)
+	event.RemoveProperty(ics.ComponentPropertyRelatedTo)
+	event.RemoveProperty(ics.ComponentPropertyResources)
+	event.RemoveProperty(ics.ComponentPropertyCategories)
+	event.RemoveProperty(ics.ComponentPropertyGeo)
+	event.RemoveProperty(ics.ComponentPropertyPriority)
+	event.RemoveProperty(ics.ComponentPropertySequence)
+	event.RemoveProperty(ics.ComponentPropertyRequestStatus)
+
+	// Remove X- properties (like X-GOOGLE-CONFERENCE)
+	// We need to iterate through all properties and remove any X- prefixed ones
+	var propertiesToRemove []ics.ComponentProperty
+	for _, prop := range event.Properties {
+		if strings.HasPrefix(prop.IANAToken, "X-") {
+			propertiesToRemove = append(propertiesToRemove, ics.ComponentProperty(prop.IANAToken))
+		}
+	}
+	for _, prop := range propertiesToRemove {
+		event.RemoveProperty(prop)
+	}
 
 	// Remove all components (alarms, reminders, etc.)
 	event.Components = nil
 
-	// Keep: DTSTART, DTEND, DTSTAMP, UID, SUMMARY, STATUS, TRANSP
+	// Keep: DTSTART, DTEND, DTSTAMP, UID, SUMMARY, STATUS, TRANSP, CLASS, CREATED, LAST-MODIFIED
 	// These are the minimal properties needed for a free/busy feed
 }
 

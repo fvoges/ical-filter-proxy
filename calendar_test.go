@@ -19,6 +19,10 @@ func TestAnonymizeEvent(t *testing.T) {
 	event.SetOrganizer("organizer@example.com")
 	event.AddAttendee("attendee1@example.com")
 	event.AddAttendee("attendee2@example.com")
+	event.AddAttachment("https://example.com/file.pdf")
+	event.AddComment("This is a secret comment")
+	event.AddProperty("X-GOOGLE-CONFERENCE", "https://meet.google.com/abc-defg-hij")
+	event.AddProperty("X-CUSTOM-FIELD", "secret data")
 
 	// Anonymize the event
 	AnonymizeEvent(event)
@@ -29,22 +33,57 @@ func TestAnonymizeEvent(t *testing.T) {
 		t.Errorf("Expected summary to be 'Busy', got '%v'", summary)
 	}
 
-	// Verify description is cleared
+	// Verify description is removed (not just empty)
 	description := event.GetProperty(ics.ComponentPropertyDescription)
-	if description != nil && description.Value != "" {
-		t.Errorf("Expected description to be empty, got '%s'", description.Value)
+	if description != nil {
+		t.Errorf("Expected description to be removed completely, got '%v'", description)
 	}
 
-	// Verify location is cleared
+	// Verify location is removed (not just empty)
 	location := event.GetProperty(ics.ComponentPropertyLocation)
-	if location != nil && location.Value != "" {
-		t.Errorf("Expected location to be empty, got '%s'", location.Value)
+	if location != nil {
+		t.Errorf("Expected location to be removed completely, got '%v'", location)
 	}
 
-	// Verify URL is cleared
+	// Verify URL is removed (not just empty)
 	url := event.GetProperty(ics.ComponentPropertyUrl)
-	if url != nil && url.Value != "" {
-		t.Errorf("Expected URL to be empty, got '%s'", url.Value)
+	if url != nil {
+		t.Errorf("Expected URL to be removed completely, got '%v'", url)
+	}
+
+	// Verify organizer is removed
+	organizer := event.GetProperty(ics.ComponentPropertyOrganizer)
+	if organizer != nil {
+		t.Errorf("Expected organizer to be removed, got '%v'", organizer)
+	}
+
+	// Verify attendees are removed
+	attendees := event.GetProperties(ics.ComponentPropertyAttendee)
+	if len(attendees) > 0 {
+		t.Errorf("Expected attendees to be removed, got %d attendees", len(attendees))
+	}
+
+	// Verify attachments are removed
+	attachments := event.GetProperties(ics.ComponentPropertyAttach)
+	if len(attachments) > 0 {
+		t.Errorf("Expected attachments to be removed, got %d attachments", len(attachments))
+	}
+
+	// Verify comments are removed
+	comments := event.GetProperties(ics.ComponentPropertyComment)
+	if len(comments) > 0 {
+		t.Errorf("Expected comments to be removed, got %d comments", len(comments))
+	}
+
+	// Verify X- properties are removed
+	xgoogleConf := event.GetProperty(ics.ComponentProperty("X-GOOGLE-CONFERENCE"))
+	if xgoogleConf != nil {
+		t.Errorf("Expected X-GOOGLE-CONFERENCE to be removed, got '%v'", xgoogleConf)
+	}
+
+	xCustom := event.GetProperty(ics.ComponentProperty("X-CUSTOM-FIELD"))
+	if xCustom != nil {
+		t.Errorf("Expected X-CUSTOM-FIELD to be removed, got '%v'", xCustom)
 	}
 
 	// Verify components (alarms) are removed
