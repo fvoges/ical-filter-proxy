@@ -264,6 +264,60 @@ There are a few more features I would like to add before I call the project "sta
 - [x] ~~Security hardening~~ ✓ Implemented multiple security improvements
 - [ ] Rate limiting per calendar/token
 
+## Development
+
+### Running Tests
+
+```bash
+make test              # Run all tests
+make test-coverage     # Run tests with coverage report
+make lint              # Run linter checks
+```
+
+### Building
+
+```bash
+make build             # Build binary using Docker
+make docker-build      # Build Docker image
+```
+
+### Changelog Generation
+
+This project uses [git-chglog](https://github.com/git-chglog/git-chglog) to automatically generate the CHANGELOG.md from git commit messages. The changelog follows the [Keep a Changelog](https://keepachangelog.com/) format.
+
+To regenerate the changelog after adding commits:
+
+```bash
+make changelog
+```
+
+To preview what will be in the next release:
+
+```bash
+make changelog-next
+```
+
+**Commit Message Format:**
+
+Please use [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+- `feat: add new feature` - New features
+- `fix: fix bug description` - Bug fixes  
+- `docs: update documentation` - Documentation changes
+- `refactor: refactor code` - Code refactoring
+- `perf: improve performance` - Performance improvements
+- `test: add tests` - Test additions/changes
+- `chore: update dependencies` - Maintenance tasks
+- `ci: update CI config` - CI/CD changes
+
+Example:
+```
+fix(calendar): properly remove all PII from anonymized events
+
+- Remove ORGANIZER, ATTENDEE, ATTACH properties
+- Remove X- custom properties
+```
+
 ## Contributing
 
 If you have a suggestion that would make this better, please feel free to open an issue or send a pull request.
