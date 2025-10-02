@@ -6,8 +6,8 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to generate changelog for (leave empty for all)'
+      next_version:
+        description: 'Next version (e.g., 1.0.0)'
         required: false
         type: string
 
@@ -24,9 +24,11 @@ jobs:
           fetch-depth: 0
 
       - name: Generate changelog
-        run: |
-          docker run --rm -v "$PWD":/workdir -w /workdir \
-            quay.io/git-chglog/git-chglog -o CHANGELOG.md
+        uses: bdashrad/git-chglog-action@v2.0.3
+        with:
+          config_dir: .chglog
+          filename: CHANGELOG.md
+          git_chglog_version: v0.15.4
 
       - name: Check for changes
         id: check_changes
