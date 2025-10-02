@@ -24,11 +24,9 @@ jobs:
           fetch-depth: 0
 
       - name: Generate changelog
-        uses: bdashrad/git-chglog-action@v2.0.3
-        with:
-          config_dir: .chglog
-          filename: CHANGELOG.md
-          git_chglog_version: 0.15.4
+        run: |
+          docker run --rm -v "$PWD":/workdir -w /workdir \
+            quay.io/git-chglog/git-chglog:0.15.4 -o CHANGELOG.md
 
       - name: Check for changes
         id: check_changes
